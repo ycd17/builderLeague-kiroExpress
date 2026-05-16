@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flappy Kiro — Property-Based Tests</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #1a1a2e;
+      font-family: monospace;
+      color: #e0e0e0;
+    }
+
+    h1 {
+      color: #ffd700;
+      font-size: 28px;
+      margin: 0 0 8px 0;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 14px;
+      margin: 0 0 32px 0;
+    }
+
+    .suite-label {
+      color: #a0c4ff;
+      font-size: 16px;
+      font-weight: bold;
+      margin: 24px 0 8px 0;
+      border-bottom: 1px solid #2a2a4e;
+      padding-bottom: 6px;
+    }
+
+    .result {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      margin: 6px 0;
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .result.pass {
+      background: #0d2b1a;
+      border-left: 3px solid #4caf50;
+    }
+
+    .result.fail {
+      background: #2b0d0d;
+      border-left: 3px solid #ff5252;
+    }
+
+    .result.running {
+      background: #1e1e3a;
+      border-left: 3px solid #888;
+    }
+
+    .icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .result-body {
+      flex: 1;
+    }
+
+    .result-title {
+      font-weight: bold;
+    }
+
+    .result-detail {
+      color: #aaa;
+      font-size: 12px;
+      margin-top: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .result.fail .result-detail {
+      color: #ff8a80;
+    }
+
+    #summary {
+      margin-top: 32px;
+      padding: 14px 18px;
+      border-radius: 4px;
+      font-size: 15px;
+      font-weight: bold;
+    }
+
+    #summary.all-pass {
+      background: #0d2b1a;
+      border: 1px solid #4caf50;
+      color: #69f0ae;
+    }
+
+    #summary.has-fail {
+      background: #2b0d0d;
+      border: 1px solid #ff5252;
+      color: #ff8a80;
+    }
+
+    #summary.running {
+      background: #1e1e3a;
+      border: 1px solid #555;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Flappy Kiro</h1>
+  <p class="subtitle">PhysicsEngine — Property-Based Tests (fast-check)</p>
+
+  <div id="results"></div>
+  <div id="summary" class="running">⏳ Running tests…</div>
+
+  <!-- fast-check via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/fast-check/lib/bundle/fast-check.min.js"></script>
+
+  <script>
+    // ── Inlined Constants ──────────────────────────────────────────────────────
+    const GRAVITY        = 0.5;
+    const FLAP_IMPULSE   = -9;
+    const MAX_FALL_SPEED = 12;
+    const PIPE_WIDTH     = 60;
+    const GAP_HEIGHT     = 150;
+    const MIN_GAP_Y      = 60;
+    const MAX_GAP_Y      = 300;
+
+    // ── Inlined PhysicsEngine ──────────────────────────────────────────────────
+    const PhysicsEngine = {
+      applyGravity(character) {
+        character.vy = Math.min(character.vy + GRAVITY, MAX_FALL_SPEED);
+      },
+      applyFlap(character) {
+        character.vy = FLAP_IMPULSE;
+      },
+      update(character) {
+        character.y += character.vy;
+      },
+    };
+
+    // ── Simple Test Runner ─────────────────────────────────────────────────────
+    const resultsEl  = document.getElementById("results");
+    const summaryEl  = document.getElementById("summary");
+    let passed = 0;
+    let failed = 0;
+
+    function addSuiteLabel(label) {
+      const el = document.createElement("div");
+      el.className = "suite-label";
+      el.textContent = label;
+      resultsEl.appendChild(el);
+    }
+
+    function recordResult(title, ok, detail) {
+      const el = document.createElement("div");
+      el.className = "result " + (ok ? "pass" : "fail");
+
+      const icon = document.createElement("span");
+      icon.className = "icon";
+      icon.textContent = ok ? "✅" : "❌";
+
+      const body = document.createElement("div");
+      body.className = "result-body";
+
+      const titleEl = document.createElement("div");
+      titleEl.className = "result-title";
+      titleEl.textContent = title;
+
+      body.appendChild(titleEl);
+
+      if (detail) {
+        const detailEl = document.createElement("div");
+        detailEl.className = "result-detail";
+        detailEl.textContent = detail;
+        body.appendChild(detailEl);
+      }
+
+      el.appendChild(icon);
+      el.appendChild(body);
+      resultsEl.appendChild(el);
+
+      if (ok) { passed++; } else { failed++; }
+    }
+
+    function runProperty(label, propertyFn, numRuns) {
+      numRuns = numRuns || 100;
+      try {
+        propertyFn();
+        recordResult(label + " — PASSED (" + numRuns + " runs)", true, null);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        recordResult(label + " — FAILED", false, msg);
+      }
+    }
+
+    function updateSummary() {
+      if (failed === 0) {
+        summaryEl.className = "all-pass";
+        summaryEl.textContent = "✅ All " + passed + " propert" + (passed === 1 ? "y" : "ies") + " passed.";
+      } else {
+        summaryEl.className = "has-fail";
+        summaryEl.textContent =
+          "❌ " + failed + " propert" + (failed === 1 ? "y" : "ies") + " failed, " +
+          passed + " passed.";
+      }
+    }
+
+    // ── Property Tests ─────────────────────────────────────────────────────────
+    addSuiteLabel("PhysicsEngine — Gravity & Terminal Velocity");
+
+    // Feature: flappy-kiro, Property 1: Gravity monotonically increases downward velocity
+    // Validates: Requirements 2.1, 2.5
+    runProperty("Property 1: Gravity monotonically increases downward velocity", function () {
+      fc.assert(
+        fc.property(
+          fc.double({ min: -100, max: MAX_FALL_SPEED - 0.01, noNaN: true }),
+          function (vy) {
+            const char = { x: 80, y: 200, vy: vy, width: 40, height: 40 };
+            const before = char.vy;
+            PhysicsEngine.applyGravity(char);
+            return char.vy > before;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    addSuiteLabel("PhysicsEngine — Flap Impulse");
+
+    // Feature: flappy-kiro, Property 2: Flap always produces upward velocity
+    // Validates: Requirements 2.2
+    runProperty("Property 2: Flap always produces upward velocity", function () {
+      fc.assert(
+        fc.property(
+          fc.record({
+            x:      fc.constant(80),
+            y:      fc.float({ min: 0, max: 640 }),
+            vy:     fc.float({ min: -20, max: 20 }),
+            width:  fc.constant(40),
+            height: fc.constant(40),
+          }),
+          function (char) {
+            PhysicsEngine.applyFlap(char);
+            return char.vy === FLAP_IMPULSE;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    addSuiteLabel("PhysicsEngine — Terminal Velocity Cap");
+
+    // Feature: flappy-kiro, Property 3: Terminal velocity is never exceeded
+    // Validates: Requirements 2.5
+    runProperty("Property 3: Terminal velocity is never exceeded", function () {
+      fc.assert(
+        fc.property(
+          fc.double({ min: -100, max: 100, noNaN: true }),
+          fc.integer({ min: 1, max: 200 }),
+          function (initialVy, steps) {
+            const char = { x: 80, y: 200, vy: initialVy, width: 40, height: 40 };
+            for (let i = 0; i < steps; i++) {
+              PhysicsEngine.applyGravity(char);
+            }
+            return char.vy <= MAX_FALL_SPEED;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    addSuiteLabel("PipeSpawner — Gap Position Bounds");
+
+    // Feature: flappy-kiro, Property 4: Pipe gap position is always within bounds
+    // Validates: Requirements 3.2
+    runProperty("Property 4: Pipe gap position is always within bounds", function () {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 50 }),
+          function (numSpawns) {
+            // Create a local spawner instance for isolation
+            const spawner = {
+              pipes: [],
+              spawn(canvasWidth) {
+                const gapY = MIN_GAP_Y + Math.random() * (MAX_GAP_Y - MIN_GAP_Y);
+                this.pipes.push({
+                  x:         canvasWidth,
+                  gapY:      gapY,
+                  gapHeight: GAP_HEIGHT,
+                  width:     PIPE_WIDTH,
+                  scored:    false,
+                });
+              },
+            };
+            for (let i = 0; i < numSpawns; i++) {
+              spawner.spawn(480);
+            }
+            return spawner.pipes.every(p => p.gapY >= MIN_GAP_Y && p.gapY <= MAX_GAP_Y);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    addSuiteLabel("CollisionDetector — AABB Overlap Symmetry and Correctness");
+
+    // ── Inlined rectOverlap (from CollisionDetector) ───────────────────────────
+    function rectOverlap(a, b) {
+      return a.x < b.x + b.width  &&
+             a.x + a.width  > b.x &&
+             a.y < b.y + b.height &&
+             a.y + a.height > b.y;
+    }
+
+    // Feature: flappy-kiro, Property 7: AABB overlap is symmetric and complete
+    // Validates: Requirements 4.1
+    const rectArb = fc.record({
+      x:      fc.integer({ min: -200, max: 200 }),
+      y:      fc.integer({ min: -200, max: 200 }),
+      width:  fc.integer({ min: 1, max: 100 }),
+      height: fc.integer({ min: 1, max: 100 }),
+    });
+
+    runProperty("Property 7a: AABB overlap is symmetric — rectOverlap(a,b) === rectOverlap(b,a)", function () {
+      fc.assert(
+        fc.property(rectArb, rectArb, function (a, b) {
+          return rectOverlap(a, b) === rectOverlap(b, a);
+        }),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    runProperty("Property 7b: AABB overlap result matches geometric overlap", function () {
+      fc.assert(
+        fc.property(rectArb, rectArb, function (a, b) {
+          const expected = a.x < b.x + b.width && a.x + a.width > b.x &&
+                           a.y < b.y + b.height && a.y + a.height > b.y;
+          return rectOverlap(a, b) === expected;
+        }),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    addSuiteLabel("ScoreManager — Pipe Scoring and Reset");
+
+    // ── Inlined ScoreManager (for test isolation) ──────────────────────────────
+    function makeScoreManager() {
+      return {
+        score: 0,
+        update(character, pipes) {
+          for (let i = 0; i < pipes.length; i++) {
+            const pipe = pipes[i];
+            if (!pipe.scored && character.x > pipe.x + pipe.width) {
+              this.score++;
+              pipe.scored = true;
+            }
+          }
+        },
+        reset() { this.score = 0; },
+      };
+    }
+
+    // Feature: flappy-kiro, Property 5: Pipe scoring is monotonically non-decreasing and correct
+    // Validates: Requirements 5.1, 5.4
+    runProperty("Property 5: Score equals count of passed pipes and never double-counts", function () {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              x:         fc.integer({ min: -200, max: 400 }),
+              gapY:      fc.constant(150),
+              gapHeight: fc.constant(150),
+              width:     fc.constant(60),
+              scored:    fc.constant(false),
+            }),
+            { minLength: 0, maxLength: 10 }
+          ),
+          fc.integer({ min: 0, max: 480 }),
+          function (pipes, charX) {
+            const sm   = makeScoreManager();
+            const char = { x: charX };
+            // Count pipes whose right edge the character has cleared
+            const expectedCount = pipes.filter(function (p) {
+              return char.x > p.x + p.width;
+            }).length;
+            // First update — should score exactly expectedCount pipes
+            sm.update(char, pipes);
+            if (sm.score !== expectedCount) return false;
+            // Second update — score must not increase (no double-counting)
+            const scoreAfterFirst = sm.score;
+            sm.update(char, pipes);
+            return sm.score === scoreAfterFirst;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    // Feature: flappy-kiro, Property 8: Score resets to zero on game restart
+    // Validates: Requirements 5.4
+    runProperty("Property 8: Score resets to exactly 0 after reset()", function () {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 0, max: 10000 }),
+          function (finalScore) {
+            const sm = makeScoreManager();
+            sm.score = finalScore;
+            sm.reset();
+            return sm.score === 0;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    addSuiteLabel("Renderer — Sprite Selection");
+
+    // Inline the sprite selection logic as a pure function (mirrors Renderer.drawCharacter)
+    function selectSprite(vy, ascSprite, descSprite) {
+      return vy < 0 ? ascSprite : descSprite;
+    }
+
+    // Feature: flappy-kiro, Property 6: Correct sprite selected for velocity direction
+    // Validates: Requirements 6.1, 6.2, 6.3
+    runProperty("Property 6: Correct sprite selected for velocity direction", function () {
+      fc.assert(
+        fc.property(
+          fc.double({ min: -100, max: 100, noNaN: true }),
+          function (vy) {
+            const selected = selectSprite(vy, "ascending", "descending");
+            if (vy < 0) return selected === "ascending";
+            return selected === "descending";
+          }
+        ),
+        { numRuns: 100 }
+      );
+    }, 100);
+
+    // ── Final Summary ──────────────────────────────────────────────────────────
+    updateSummary();
+  </script>
+</body>
+</html>

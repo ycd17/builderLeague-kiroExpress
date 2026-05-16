@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flappy Kiro</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1a1a2e;
+      font-family: monospace;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges; /* Firefox */
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="480" height="640">
+    Your browser does not support the HTML5 canvas element. Please upgrade to a modern browser to play Flappy Kiro.
+  </canvas>
+
+  <script>
+    // ── Constants ──────────────────────────────────────────────────────────────
+    const CANVAS_WIDTH   = 480;   // px
+    const CANVAS_HEIGHT  = 640;   // px
+    const GRAVITY        = 0.5;   // px/frame² — downward acceleration
+    const FLAP_IMPULSE   = -9;    // px/frame  — upward velocity on flap (negative = up)
+    const MAX_FALL_SPEED = 12;    // px/frame  — terminal velocity cap (downward)
+    const PIPE_SPEED     = 3;     // px/frame  — leftward scroll speed for pipes
+    const PIPE_WIDTH     = 60;    // px        — width of each pipe segment
+    const GAP_HEIGHT     = 150;   // px        — vertical gap between top and bottom pipe
+    const SPAWN_INTERVAL = 90;    // frames    — frames between consecutive pipe spawns
+    const BG_SPEED       = 2;     // px/frame  — background scroll speed
+    const MIN_GAP_Y      = 60;    // px        — minimum y of gap top from canvas top
+    const MAX_GAP_Y      = 300;   // px        — maximum y of gap top from canvas top
+
+    // ── Game State ─────────────────────────────────────────────────────────────
+    const STATE = {
+      START:    "start",
+      PLAYING:  "playing",
+      GAMEOVER: "gameover",
+    };
+
+    let gameState = STATE.START;
+
+    // ── Canvas Setup ───────────────────────────────────────────────────────────
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      // Canvas 2D context not supported — show fallback
+      canvas.innerHTML = "Your browser does not support HTML5 Canvas. Please upgrade to play Flappy Kiro.";
+    }
+
+    // ── Asset Loading (Task 2) ────────────────────────────────────────────────
+    const ascendingSprite  = new Image();
+    const descendingSprite = new Image();
+    let ascendingLoaded  = false;
+    let descendingLoaded = false;
+
+    ascendingSprite.onload  = () => { ascendingLoaded  = true; };
+    ascendingSprite.onerror = () => { ascendingLoaded  = false; };
+    descendingSprite.onload  = () => { descendingLoaded  = true; };
+    descendingSprite.onerror = () => { descendingLoaded  = false; };
+
+    ascendingSprite.src  = "assets/inv1.png";
+    descendingSprite.src = "assets/inv2.png";
+
+    // ── AudioManager ──────────────────────────────────────────────────────────
+    const AudioManager = {
+      jumpSound: null,
+      gameOverSound: null,
+
+      load() {
+        try { this.jumpSound = new Audio("assets/jump.wav"); } catch (_) {}
+        try { this.gameOverSound = new Audio("assets/game_over.mp3"); } catch (_) {}
+      },
+
+      playJump() {
+        try {
+          if (this.jumpSound) {
+            this.jumpSound.currentTime = 0;
+            this.jumpSound.play().catch(() => {});
+          }
+        } catch (_) {}
+      },
+
+      playGameOver() {
+        try {
+          if (this.gameOverSound) {
+            this.gameOverSound.currentTime = 0;
+            this.gameOverSound.play().catch(() => {});
+          }
+        } catch (_) {}
+      },
+    };
+
+    AudioManager.load();
+
+    // ── PhysicsEngine (Task 3) ────────────────────────────────────────────────
+    const PhysicsEngine = {
+      applyGravity(character) {
+        character.vy = Math.min(character.vy + GRAVITY, MAX_FALL_SPEED);
+      },
+      applyFlap(character) {
+        character.vy = FLAP_IMPULSE;
+      },
+      update(character) {
+        character.y += character.vy;
+      },
+    };
+
+    // ── Character ─────────────────────────────────────────────────────────────
+    const character = {
+      x: 80,
+      y: 200,
+      vy: 0,
+      width: 40,
+      height: 40,
+      reset() {
+        this.y  = 200;
+        this.vy = 0;
+      },
+    };
+
+    // ── InputHandler ──────────────────────────────────────────────────────────
+    const InputHandler = {
+      init(canvas, onAction) {
+        document.addEventListener("keydown", e => {
+          if (e.code === "Space") {
+            e.preventDefault();
+            onAction();
+          }
+        });
+        canvas.addEventListener("click", () => onAction());
+      },
+    };
+
+    // ── PipeSpawner (Task 5) ──────────────────────────────────────────────────
+    const PipeSpawner = {
+      pipes: [],
+      spawnTimer: SPAWN_INTERVAL,
+
+      update(canvasWidth) {
+        this.spawnTimer--;
+        if (this.spawnTimer <= 0) {
+          this.spawn(canvasWidth);
+          this.spawnTimer = SPAWN_INTERVAL;
+        }
+        this.scroll(PIPE_SPEED);
+        this.cleanup();
+      },
+
+      spawn(canvasWidth) {
+        const gapY = MIN_GAP_Y + Math.random() * (MAX_GAP_Y - MIN_GAP_Y);
+        this.pipes.push({
+          x:         canvasWidth,
+          gapY:      gapY,
+          gapHeight: GAP_HEIGHT,
+          width:     PIPE_WIDTH,
+          scored:    false,
+        });
+      },
+
+      scroll(speed) {
+        for (let i = 0; i < this.pipes.length; i++) {
+          this.pipes[i].x -= speed;
+        }
+      },
+
+      cleanup() {
+        this.pipes = this.pipes.filter(p => p.x + p.width >= 0);
+      },
+    };
+
+    // ── CollisionDetector (Task 6) ────────────────────────────────────────────
+    const CollisionDetector = {
+      rectOverlap(a, b) {
+        return a.x < b.x + b.width  &&
+               a.x + a.width  > b.x &&
+               a.y < b.y + b.height &&
+               a.y + a.height > b.y;
+      },
+
+      check(character, pipes, canvasHeight) {
+        // Canvas boundary — top
+        if (character.y < 0) return true;
+        // Canvas boundary — bottom
+        if (character.y + character.height > canvasHeight) return true;
+
+        // Pipe segments
+        for (let i = 0; i < pipes.length; i++) {
+          const pipe = pipes[i];
+          const topPipe = {
+            x: pipe.x, y: 0,
+            width: pipe.width, height: pipe.gapY,
+          };
+          const bottomPipe = {
+            x: pipe.x, y: pipe.gapY + pipe.gapHeight,
+            width: pipe.width, height: canvasHeight - (pipe.gapY + pipe.gapHeight),
+          };
+          if (this.rectOverlap(character, topPipe) || this.rectOverlap(character, bottomPipe)) {
+            return true;
+          }
+        }
+        return false;
+      },
+    };
+
+    // ── ScoreManager (Task 7) ─────────────────────────────────────────────────
+    const ScoreManager = {
+      score: 0,
+
+      update(character, pipes) {
+        for (let i = 0; i < pipes.length; i++) {
+          const pipe = pipes[i];
+          if (!pipe.scored && character.x > pipe.x + pipe.width) {
+            this.score++;
+            pipe.scored = true;
+          }
+        }
+      },
+
+      reset() {
+        this.score = 0;
+      },
+    };
+
+    // ── Stars (pre-generated once for background rendering) ───────────────────
+    const TILE_WIDTH = 400;
+    const STARS = [];
+    (function generateStars() {
+      for (let i = 0; i < 60; i++) {
+        STARS.push({
+          x:    Math.floor(Math.random() * TILE_WIDTH),
+          y:    Math.floor(Math.random() * CANVAS_HEIGHT),
+          size: Math.random() < 0.8 ? 1 : 2,
+        });
+      }
+    })();
+
+    // ── BackgroundScroller ────────────────────────────────────────────────────
+    const BackgroundScroller = {
+      offset:    0,
+      speed:     BG_SPEED,
+      tileWidth: TILE_WIDTH,
+
+      update() {
+        this.offset = (this.offset + this.speed) % this.tileWidth;
+      },
+    };
+
+    // ── Renderer (Task 10) ────────────────────────────────────────────────────
+    const Renderer = {
+      drawBackground(ctx, bgOffset) {
+        ctx.save();
+        const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+        grad.addColorStop(0,   "#1a1a2e");
+        grad.addColorStop(0.6, "#16213e");
+        grad.addColorStop(1,   "#0f3460");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.fillStyle = "#ffffff";
+        for (let i = 0; i < STARS.length; i++) {
+          const star = STARS[i];
+          const sx = ((star.x - bgOffset) % TILE_WIDTH + TILE_WIDTH) % TILE_WIDTH;
+          ctx.fillRect(sx, star.y, star.size, star.size);
+        }
+        ctx.restore();
+      },
+
+      drawPipes(ctx, pipes) {
+        for (let i = 0; i < pipes.length; i++) {
+          const pipe  = pipes[i];
+          const topH  = pipe.gapY;
+          const botY  = pipe.gapY + pipe.gapHeight;
+          const botH  = CANVAS_HEIGHT - botY;
+          const capW  = pipe.width + 8;
+          const capH  = 16;
+          const capX  = pipe.x - 4;
+          ctx.save();
+          // Pipe body — retro green
+          ctx.fillStyle   = "#4caf50";
+          ctx.fillRect(pipe.x, 0,    pipe.width, topH);
+          ctx.fillRect(pipe.x, botY, pipe.width, botH);
+          // Dark border for depth
+          ctx.strokeStyle = "#1b5e20";
+          ctx.lineWidth   = 3;
+          ctx.strokeRect(pipe.x, 0,    pipe.width, topH);
+          ctx.strokeRect(pipe.x, botY, pipe.width, botH);
+          // Pipe caps (slightly wider, at the gap edge)
+          ctx.fillStyle   = "#388e3c";
+          ctx.fillRect(capX, topH - capH, capW, capH);
+          ctx.fillRect(capX, botY,        capW, capH);
+          ctx.strokeStyle = "#1b5e20";
+          ctx.strokeRect(capX, topH - capH, capW, capH);
+          ctx.strokeRect(capX, botY,        capW, capH);
+          ctx.restore();
+        }
+      },
+
+      drawCharacter(ctx, character) {
+        const useAscending = character.vy < 0;
+        const sprite    = useAscending ? ascendingSprite  : descendingSprite;
+        const isLoaded  = useAscending ? ascendingLoaded  : descendingLoaded;
+        ctx.save();
+        if (isLoaded) {
+          ctx.drawImage(sprite, character.x, character.y, character.width, character.height);
+        } else {
+          // Fallback: colored rectangle matching hitbox size
+          ctx.fillStyle   = "#a8e6cf";
+          ctx.fillRect(character.x, character.y, character.width, character.height);
+          ctx.strokeStyle = "#3d9970";
+          ctx.lineWidth   = 2;
+          ctx.strokeRect(character.x + 1, character.y + 1, character.width - 2, character.height - 2);
+        }
+        ctx.restore();
+      },
+
+      drawScore(ctx, score) {
+        ctx.save();
+        ctx.fillStyle    = "#ffffff";
+        ctx.font         = "bold 28px monospace";
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(score, CANVAS_WIDTH / 2, 16);
+        ctx.restore();
+      },
+
+      drawStartScreen(ctx) {
+        ctx.save();
+        ctx.fillStyle    = "#ffd700";
+        ctx.font         = "bold 40px monospace";
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Flappy Kiro", CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.35);
+        ctx.fillStyle = "#ffffff";
+        ctx.font      = "18px monospace";
+        ctx.fillText("Press Space or Click to Begin", CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.55);
+        ctx.restore();
+      },
+
+      drawGameOverScreen(ctx, score) {
+        ctx.save();
+        // Semi-transparent overlay
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "middle";
+        // "Game Over" heading
+        ctx.fillStyle = "#ff5252";
+        ctx.font      = "bold 40px monospace";
+        ctx.fillText("Game Over", CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.35);
+        // Final score
+        ctx.fillStyle = "#ffd700";
+        ctx.font      = "bold 28px monospace";
+        ctx.fillText("Score: " + score, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.48);
+        // Restart instruction
+        ctx.fillStyle = "#ffffff";
+        ctx.font      = "18px monospace";
+        ctx.fillText("Press Space or Click to Restart", CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.62);
+        ctx.restore();
+      },
+    };
+
+    // ── onAction callback (Task 11.2) ────────────────────────────────────────
+    function onAction() {
+      if (gameState === STATE.START || gameState === STATE.GAMEOVER) {
+        // Reset all mutable state before transitioning
+        character.reset();
+        PipeSpawner.pipes      = [];
+        PipeSpawner.spawnTimer = SPAWN_INTERVAL;
+        ScoreManager.reset();
+        gameState = STATE.PLAYING;
+      } else if (gameState === STATE.PLAYING) {
+        PhysicsEngine.applyFlap(character);
+        AudioManager.playJump();
+      }
+    }
+
+    // ── Game Loop (Task 11.1) ─────────────────────────────────────────────────
+    function gameLoop() {
+      if (gameState === STATE.PLAYING) {
+        PhysicsEngine.applyGravity(character);
+        PhysicsEngine.update(character);
+        BackgroundScroller.update();
+        PipeSpawner.update(CANVAS_WIDTH);
+        ScoreManager.update(character, PipeSpawner.pipes);
+
+        if (CollisionDetector.check(character, PipeSpawner.pipes, CANVAS_HEIGHT)) {
+          AudioManager.playGameOver();
+          gameState = STATE.GAMEOVER;
+        }
+      } else if (gameState === STATE.GAMEOVER) {
+        // Background continues scrolling on game over screen (Req 7.1)
+        BackgroundScroller.update();
+      }
+      // START state: no physics, no scrolling — background renders at current (static) offset
+
+      // ── Render (runs every frame regardless of state) ──────────────────────
+      Renderer.drawBackground(ctx, BackgroundScroller.offset);
+      Renderer.drawPipes(ctx, PipeSpawner.pipes);
+      Renderer.drawCharacter(ctx, character);
+
+      if (gameState === STATE.PLAYING) {
+        Renderer.drawScore(ctx, ScoreManager.score);
+      } else if (gameState === STATE.START) {
+        Renderer.drawStartScreen(ctx);
+      } else if (gameState === STATE.GAMEOVER) {
+        Renderer.drawScore(ctx, ScoreManager.score);
+        Renderer.drawGameOverScreen(ctx, ScoreManager.score);
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ── Bootstrap ─────────────────────────────────────────────────────────────
+    InputHandler.init(canvas, onAction);
+    requestAnimationFrame(gameLoop);
+
+  </script>
+</body>
+</html>
