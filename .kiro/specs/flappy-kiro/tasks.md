@@ -39,80 +39,80 @@ Implement Flappy Kiro as a single self-contained `.html` file using pure HTML5, 
     - For random `vy` values below `MAX_FALL_SPEED`, one `applyGravity` call must increase `vy` toward `MAX_FALL_SPEED`
     - **Validates: Requirements 2.1, 2.5**
 
-  - [ ] 3.3 Write property test: flap always produces upward velocity
+  - [~] 3.3 Write property test: flap always produces upward velocity
     - **Property 2: Flap always produces upward velocity**
     - For any random character state, `applyFlap` must set `vy` to exactly `FLAP_IMPULSE` (negative)
     - **Validates: Requirements 2.2**
 
-  - [ ] 3.4 Write property test: terminal velocity is never exceeded
+  - [~] 3.4 Write property test: terminal velocity is never exceeded
     - **Property 3: Terminal velocity is never exceeded**
     - For any sequence of `applyGravity` calls (no flap), `character.vy` must never exceed `MAX_FALL_SPEED`
     - **Validates: Requirements 2.5**
 
 - [ ] 4. Implement Character object and InputHandler
-  - [ ] 4.1 Define Character object
+  - [~] 4.1 Define Character object
     - Create `character` plain object with fields `x=80`, `y=200`, `vy=0`, `width=40`, `height=40`
     - Add a `reset()` helper that restores `y=200` and `vy=0` for use on game restart
     - _Requirements: 2.3, 2.4_
 
-  - [ ] 4.2 Implement InputHandler
+  - [~] 4.2 Implement InputHandler
     - Create `InputHandler` object with `init(canvas, onAction)` method
     - Listen for `keydown` with `e.code === "Space"` on `document` and `click` on the canvas
     - Call `onAction()` on each event; the game-loop callback will guard against invalid state transitions
     - _Requirements: 1.2, 1.4, 2.2_
 
 - [ ] 5. Implement PipeSpawner and pipe scrolling
-  - [ ] 5.1 Implement PipeSpawner with spawn, scroll, and cleanup
+  - [~] 5.1 Implement PipeSpawner with spawn, scroll, and cleanup
     - Create `PipeSpawner` object with `pipes` array, `spawnTimer`, `update(canvasWidth)`, `spawn(canvasWidth)`, `scroll(speed)`, and `cleanup()` methods
     - `spawn` pushes a new `PipePair` object with `x=canvasWidth`, random `gapY` in `[minGapY, maxGapY]`, constant `gapHeight=GAP_HEIGHT`, `width=PIPE_WIDTH`, `scored=false`
     - `cleanup` removes pipes whose `x + width < 0`
     - `update` decrements `spawnTimer`, calls `spawn` when it reaches 0 (reset to `SPAWN_INTERVAL`), then calls `scroll` and `cleanup`
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-  - [ ] 5.2 Write property test: pipe gap position is always within bounds
+  - [~] 5.2 Write property test: pipe gap position is always within bounds
     - **Property 4: Pipe gap position is always within bounds**
     - For any random seed passed to `PipeSpawner.spawn`, the resulting `gapY` must satisfy `minGapY ≤ gapY ≤ maxGapY`
     - **Validates: Requirements 3.2**
 
 - [ ] 6. Implement CollisionDetector
-  - [ ] 6.1 Implement AABB overlap and full collision check
+  - [~] 6.1 Implement AABB overlap and full collision check
     - Create `CollisionDetector` object with `rectOverlap(a, b)` and `check(character, pipes, canvasHeight)` methods
     - `rectOverlap` returns `true` if two `{x, y, width, height}` rects overlap (strict overlap, not just touching)
     - `check` tests character against top and bottom segments of every pipe, plus canvas top (`character.y < 0`) and bottom (`character.y + character.height > canvasHeight`) boundaries
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ] 6.2 Write property test: AABB collision detection is symmetric and complete
+  - [~] 6.2 Write property test: AABB collision detection is symmetric and complete
     - **Property 7: AABB overlap is symmetric and complete**
     - For random pairs of rectangles, `rectOverlap(a, b) === rectOverlap(b, a)` must always hold, and the result must match geometric overlap
     - **Validates: Requirements 4.1**
 
 - [ ] 7. Implement ScoreManager
-  - [ ] 7.1 Implement score tracking and reset
+  - [~] 7.1 Implement score tracking and reset
     - Create `ScoreManager` object with `score=0`, `update(character, pipes)`, and `reset()` methods
     - `update` iterates pipes; for each pipe where `!pipe.scored && character.x > pipe.x + pipe.width`, increment `score` and set `pipe.scored = true`
     - `reset` sets `score = 0`
     - _Requirements: 5.1, 5.4_
 
-  - [ ] 7.2 Write property test: score is monotonically non-decreasing and correct
+  - [~] 7.2 Write property test: score is monotonically non-decreasing and correct
     - **Property 5: Pipe scoring is monotonically non-decreasing and correct**
     - For random sequences of pipe positions and character x-values, score must equal the count of passed pipes and must never decrease within a session
     - **Validates: Requirements 5.1, 5.4**
 
-  - [ ] 7.3 Write property test: score resets to zero on game restart
+  - [~] 7.3 Write property test: score resets to zero on game restart
     - **Property 8: Score resets to zero on game restart**
     - For any random final score value, calling `ScoreManager.reset()` must set `score` to exactly `0`
     - **Validates: Requirements 5.4**
 
-- [ ] 8. Checkpoint — Ensure all logic modules pass their tests
+- [~] 8. Checkpoint — Ensure all logic modules pass their tests
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement BackgroundScroller
+- [~] 9. Implement BackgroundScroller
   - Create `BackgroundScroller` object with `offset=0`, `speed=BG_SPEED`, `tileWidth=400`, and `update()` method
   - `update` advances `offset` by `speed` and wraps with `% tileWidth` to ensure seamless looping
   - _Requirements: 7.1, 7.4_
 
 - [ ] 10. Implement Renderer
-  - [ ] 10.1 Implement background and pipe drawing
+  - [~] 10.1 Implement background and pipe drawing
     - Implement `Renderer.drawBackground(ctx, bgOffset)` using a tiled fill that shifts by `bgOffset` and wraps seamlessly
     - Implement `Renderer.drawPipes(ctx, pipes)` drawing top and bottom pipe rectangles using a retro color palette (e.g., green with dark border)
     - _Requirements: 7.1, 7.2, 7.4_
