@@ -1,6 +1,6 @@
-# 🐦 Flappy Kiro
+# 🧾 Flappy Kiro
 
-Un juego arcade de desplazamiento infinito estilo retro, inspirado en Flappy Bird. Controla un personaje fantasma navegando a través de una serie interminable de tuberías. Implementado en **HTML5, CSS y JavaScript puro** — sin dependencias externas, sin pasos de compilación, sin servidor requerido.
+Un juego arcade de desplazamiento infinito estilo retro, inspirado en Flappy Bird. Controla a **Facturita** — nuestro icónico personaje — navegando a través de una serie interminable de tuberías. Implementado en **HTML5, CSS y JavaScript puro** — sin dependencias externas, sin pasos de compilación, sin servidor requerido.
 
 ![Flappy Kiro UI](img/example-ui.png)
 
@@ -14,7 +14,7 @@ Un juego arcade de desplazamiento infinito estilo retro, inspirado en Flappy Bir
 | Volar hacia arriba | `Espacio` o clic en el canvas |
 | Reiniciar tras Game Over | `Espacio` o clic en el canvas |
 
-**Objetivo:** Pasa por el mayor número de tuberías posible sin chocar con ellas ni con los bordes de la pantalla. Cada tubería superada suma 1 punto.
+**Objetivo:** Guía a **Facturita** por el mayor número de tuberías posible sin chocar con ellas ni con los bordes de la pantalla. Cada tubería superada suma 1 punto.
 
 ---
 
@@ -22,7 +22,7 @@ Un juego arcade de desplazamiento infinito estilo retro, inspirado en Flappy Bir
 
 ### Opción 1 — Abrir directamente en el navegador
 
-Simplemente abre `flappy-kiro.html` en cualquier navegador moderno. No necesitas servidor ni instalación.
+Simplemente abre `index.html` en cualquier navegador moderno. No necesitas servidor ni instalación.
 
 ### Opción 2 — Servidor local (recomendado para desarrollo)
 
@@ -34,13 +34,13 @@ python -m http.server 8080
 npx serve .
 ```
 
-Luego abre: `http://localhost:8080/flappy-kiro.html`
+Luego abre: `http://localhost:8080`
 
 ### Opción 3 — GitHub Pages (link público)
 
 Visita la versión en línea en:
 ```
-https://TU_USUARIO.github.io/flappy-kiro/flappy-kiro.html
+https://TU_USUARIO.github.io/flappy-kiro/
 ```
 
 ---
@@ -49,11 +49,11 @@ https://TU_USUARIO.github.io/flappy-kiro/flappy-kiro.html
 
 ```
 flappy-kiro/
-├── flappy-kiro.html        # Juego completo (único archivo necesario)
+├── index.html              # Juego completo (único archivo necesario)
 ├── flappy-kiro.test.html   # Suite de tests de propiedades (fast-check)
 ├── assets/
-│   ├── inv1.png            # Sprite ascendente (personaje subiendo)
-│   ├── inv2.png            # Sprite descendente (personaje bajando)
+│   ├── facturita1.png      # Facturita ascendente (subiendo)
+│   ├── facturita2.png      # Facturita descendente (bajando)
 │   ├── jump.wav            # Sonido de salto
 │   └── game_over.mp3       # Sonido de game over
 ├── img/
@@ -123,9 +123,9 @@ El juego sigue una **arquitectura de game loop** impulsada por `requestAnimation
 |--------|----------------|
 | `PhysicsEngine` | Aplica gravedad, impulso de salto y actualiza posición |
 | `PipeSpawner` | Genera, desplaza y elimina pares de tuberías |
-| `CollisionDetector` | Detecta colisiones AABB entre personaje, tuberías y bordes |
+| `CollisionDetector` | Detecta colisiones AABB entre Facturita, tuberías y bordes |
 | `ScoreManager` | Registra y resetea la puntuación |
-| `Renderer` | Dibuja fondo, tuberías, personaje y overlays de UI |
+| `Renderer` | Dibuja fondo, tuberías, Facturita y overlays de UI |
 | `AudioManager` | Carga y reproduce efectos de sonido con fallback silencioso |
 | `InputHandler` | Escucha eventos de teclado y clic |
 | `BackgroundScroller` | Gestiona el desplazamiento continuo del fondo |
@@ -153,12 +153,12 @@ El juego sigue una **arquitectura de game loop** impulsada por `requestAnimation
 
 | Asset | Archivo | Cuándo se usa |
 |-------|---------|---------------|
-| Sprite ascendente | `assets/inv1.png` | `vy < 0` (personaje subiendo) |
-| Sprite descendente | `assets/inv2.png` | `vy >= 0` (personaje bajando) |
+| Facturita ascendente | `assets/facturita1.png` | `vy < 0` (Facturita subiendo) |
+| Facturita descendente | `assets/facturita2.png` | `vy >= 0` (Facturita bajando) |
 | Sonido de salto | `assets/jump.wav` | Al presionar Espacio/clic durante el juego |
 | Sonido game over | `assets/game_over.mp3` | Al colisionar |
 
-> Si los sprites no cargan, el juego muestra automáticamente un rectángulo de color como fallback — el juego siempre es jugable.
+> Si los sprites de Facturita no cargan, el juego muestra automáticamente un rectángulo de color como fallback — el juego siempre es jugable.
 
 ---
 
@@ -186,7 +186,7 @@ Cada test ejecuta **100 iteraciones** con entradas generadas aleatoriamente.
 ## 🛡️ Manejo de errores
 
 - **Audio:** Todos los errores de carga y reproducción se capturan silenciosamente — el juego continúa sin audio si el navegador no lo soporta.
-- **Sprites:** Si una imagen falla al cargar, el renderer dibuja un rectángulo de color del mismo tamaño que el hitbox.
+- **Sprites de Facturita:** Si una imagen falla al cargar, el renderer dibuja un rectángulo de color del mismo tamaño que el hitbox.
 - **Canvas no soportado:** Si `getContext("2d")` retorna `null`, se muestra un mensaje de texto alternativo.
 
 ---
